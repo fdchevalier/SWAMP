@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.0
+# Version: 0.1
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in:
+# Modified in: 2020-09-14
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.1 - 2020-09-14: add equalization step
 # v0.0 - 2020-07-15: creation
 
 version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
@@ -138,6 +139,7 @@ function clean_up {
 #==============#
 
 test_dep ffmpeg
+test_dep convert
 test_dep cellprofiler
 
 
@@ -231,6 +233,16 @@ do
 	ffmpeg -y -accurate_seek -ss $i -i "$movie" -frames:v 1 "$dir_frames/${i}-${tag}.png" &>> "$log_movie"
     [[ $? -ne 0 ]] && error "Please see $log_movie for details. Exiting..." 1
     [[ $tag -eq 1 ]] && tag=2 || tag=1
+done
+
+# Equalize frames
+info "Equalizing frames..."
+length=$(ls -1 "$dir_frames" | wc -l)
+for i in $(seq 1 $length)
+do
+    ProgressBar 10#$i $length
+    file=$(ls -1d "$dir_frames"/* | sed -n "${i}p")
+	convert "$file" -equalize "$file"
 done
 
 
