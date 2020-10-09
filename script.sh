@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.1
+# Version: 0.2
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-09-14
+# Modified in: 2020-10-07
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.2 - 2020-10-07: negate and threshold image during the equalization step
 # v0.1 - 2020-09-14: add equalization step
 # v0.0 - 2020-07-15: creation
 
@@ -34,7 +35,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -p|--stop value -n|--int value -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -p|--stop value -n|--int value -t|--trsh value -h|--help
 
 Aim: $aim
 
@@ -46,6 +47,7 @@ Options:
     -a, --start     video time in second at which to start the analysis (integer) [default: 0]
     -p, --stop      video time in second at which to stop the analysis (integer) [default: 180]
     -n, --int       interval in second for sampling frame (integer) [default: 5]
+    -t, --trsh      percentage of thresholding for well recognition (integer) [default: 60]
     -h, --help      this message
     "
 }
@@ -157,6 +159,7 @@ do
         -a|--start  ) start="$2"  ; shift 2 ;;
         -p|--stop   ) stop="$2"   ; shift 2 ;;
         -n|--int    ) int="$2"    ; shift 2 ;;
+        -t|--trsh   ) trsh="$2"   ; shift 2 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -174,10 +177,14 @@ done
 [[ -z "$start" ]] && start=0
 [[ -z "$stop" ]]  && stop=180
 [[ -z "$int" ]]   && int=5
+[[ -z "$trsh" ]]  && trsh=60
 
 # Check related values to video time
 [[ ! $(grep -x "[[:digit:]]*" <<<"$start") || ! $(grep -x "[[:digit:]]*" <<<"$int") || ! $(grep -x "[[:digit:]]*" <<<"$stop") ]] && error "The option start, stop and int must be integers. Exiting..." 1
 [[ "$start" -gt "$stop" ]] && error "The option start is greater than stop. Exiting..." 1
+
+# Check thresholding value
+[[ ! $(grep -x "[[:digit:]]*" <<<"$trsh") || $trsh -lt 0 || $trsh -gt 100 ]] && error "The option trsh must be a number between 0 and 100. Exiting..." 1
 
 # Directory variables
 dir_frames=frames
@@ -236,13 +243,14 @@ do
 done
 
 # Equalize frames
-info "Equalizing frames..."
-length=$(ls -1 "$dir_frames" | wc -l)
+info "Equalizing, negating and thresholding frames..."
+flist=$(ls -1d "$dir_frames"/*)
+length=$(wc -l <<< "$flist")
 for i in $(seq 1 $length)
 do
     ProgressBar 10#$i $length
-    file=$(ls -1d "$dir_frames"/* | sed -n "${i}p")
-	convert "$file" -equalize "$file"
+    file=$(sed -n "${i}p" <<< "$flist")
+	convert "$file" -equalize -negate -threshold $trsh% "${file%.*}_ent.png"
 done
 
 
