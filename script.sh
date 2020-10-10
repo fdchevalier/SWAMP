@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.2
+# Version: 0.3
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-10-07
+# Modified in: 2020-10-10
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.3 - 2020-10-10: use mask to identify well / replace RandIndex by a simpler image difference index / improve input file check
 # v0.2 - 2020-10-07: negate and threshold image during the equalization step
 # v0.1 - 2020-09-14: add equalization step
 # v0.0 - 2020-07-15: creation
@@ -168,6 +169,8 @@ done
 
 # Check the existence of obligatory options
 [[ -z "$movie" ]] && error "The option input is required. Exiting...\n$(usage)" 1
+[[ ! -s "$movie" ]] && error "The input video does not exist or is empty. Exiting...\n$(usage)" 1
+[[ ! $(mimetype -bL "$movie" | grep -i video) ]] && error "The input is not a video file. Exiting...\n$(usage)" 1
 
 # Check output variable and files
 [[ -z "$output" ]] && output="RandIndex_table.tsv"
@@ -242,16 +245,21 @@ do
     [[ $tag -eq 1 ]] && tag=2 || tag=1
 done
 
-# Equalize frames
-info "Equalizing, negating and thresholding frames..."
+# Generate mask
+info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
+file=$(sed -n "1p" <<< "$flist")
+convert "$file" -equalize -negate -threshold $trsh% "$(dirname "$file")/mask_ent.png"
 for i in $(seq 1 $length)
 do
-    ProgressBar 10#$i $length
+    #ProgressBar 10#$i $length
     file=$(sed -n "${i}p" <<< "$flist")
-	convert "$file" -equalize -negate -threshold $trsh% "${file%.*}_ent.png"
+	cp -a "$(dirname "$file")/mask_ent.png" "${file%.*}_ent.png"
 done
+
+# Remove mask
+rm "$(dirname "$file")/mask_ent.png"
 
 
 #---------------#
@@ -263,13 +271,19 @@ cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames
 [[ $? -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
 
 
-#-------------------#
-# Compute RandIndex #
-#-------------------#
+#--------------------------#
+# Compute well differences #
+#--------------------------#
 
-info "Computing RandIndex. This may take a while..."
-cellprofiler -c -r -p "$dir_pipelines/Single Worm RandIndex.cppipe" -i "$dir_wells/wells" -o "$dir_index" &> "$log_index"
-[[ $? -ne 0 ]] && error "Please see $log_index for details. Exiting..." 1
+info "Comparing wells over time."
+dlist=($(find "$dir_wells/" -mindepth 1 -type d | sort))
+dend=$(( ${#dlist[@]} - 1 ))
+for ((i = 0 ; i < $dend ; i++))
+do
+    j=$(($i + 1))
+    ProgressBar 10#$j $dend
+    ./diff_image.sh ${dlist[$i]} ${dlist[$j]} "$dir_wells/${dlist[$i]##*/}-${dlist[$j]##*/}.tab"
+done
 
 
 #----------------------#
@@ -278,18 +292,27 @@ cellprofiler -c -r -p "$dir_pipelines/Single Worm RandIndex.cppipe" -i "$dir_wel
 
 info "Generating final table..."
 
-ls_fd=$(find "$dir_index" -mindepth 1 -type d)
+ls_fl=($(find "$dir_wells" -mindepth 1 -type f -name *.tab | sort))
 
-# Header
-echo -e "Well\t$(head -1 $(head -1 <<<"$ls_fd")/Image.txt)" > "$output"
-
-for i in $ls_fd
+for i in ${!ls_fl[@]}
 do
-    j=${i##*_}
-    data=$(tail -n +2 "$i/Image.txt")
-    well_cln=$(printf "%$(wc -l <<<"$data")s" | sed "s/ /$j\n/g")
-    paste <(echo "$well_cln") <(echo -e "$data")
-done >> "$output"
+    ProgressBar 10#$(($i + 1)) ${#ls_fl[@]}
+    
+    if [[ $i == 0 ]]
+    then
+        myheader="Well\t$(sed -r "s|.*/(.*).tab|\1|g" <<< "${ls_fl[$i]}")"
+        mymean=$(cat <(echo "$myheader") <(sed "s| |\t|g" "${ls_fl[$i]}" | cut -f 1-2))
+        myerror=$(cat <(echo "$myheader") <(sed "s| |\t|g" "${ls_fl[$i]}" | cut -f 1,3))
+    else
+        myheader="$(sed -r "s|.*/(.*).tab|\1|g" <<< "${ls_fl[$i]}")"
+        mymean=$(paste <(echo "$mymean") <(cat <(echo "$myheader") <(cut -d " " -f 2 "${ls_fl[$i]}")))
+        myerror=$(paste <(echo "$myerror") <(cat <(echo "$myheader") <(cut -d " " -f 3 "${ls_fl[$i]}")))
+    fi
+
+done
+
+echo -e "$mymean"  >> "${output}_mymean.tsv"
+echo -e "$myerror" >> "${output}_myerror.tsv"
 
 
 #-------#
