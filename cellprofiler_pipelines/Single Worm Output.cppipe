@@ -2,7 +2,7 @@ CellProfiler Pipeline: http://www.cellprofiler.org
 Version:4
 DateRevision:319
 GitHash:
-ModuleCount:9
+ModuleCount:11
 HasImagePlaneDetails:False
 
 Images:[module_num:1|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\'To begin creating your workspace, use the Images module to compile a list of files and/or folders that you want to analyze. You can also specify a set of rules to include only the desired files in your selected folders.\', \'\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
@@ -17,7 +17,7 @@ Metadata:[module_num:2|svn_version:\'Unknown\'|variable_revision_number:5|show_w
     Extraction method count:\xff\xfe1\x00
     Metadata extraction method:\xff\xfeE\x00x\x00t\x00r\x00a\x00c\x00t\x00 \x00f\x00r\x00o\x00m\x00 \x00f\x00i\x00l\x00e\x00/\x00f\x00o\x00l\x00d\x00e\x00r\x00 \x00n\x00a\x00m\x00e\x00s\x00
     Metadata source:\xff\xfeF\x00i\x00l\x00e\x00 \x00n\x00a\x00m\x00e\x00
-    Regular expression to extract from file name:\xff\xfe^\x00(\x00?\x00P\x00<\x00T\x00i\x00m\x00e\x00>\x00.\x00*\x00)\x00-\x00.\x00*\x00.\x00p\x00n\x00g\x00
+    Regular expression to extract from file name:\xff\xfe^\x00(\x00?\x00P\x00<\x00T\x00i\x00m\x00e\x00>\x00.\x00*\x00)\x00-\x00.\x00*\x00.\x00(\x00t\x00i\x00f\x00\x7C\x00p\x00n\x00g\x00)\x00
     Regular expression to extract from folder name:\xff\xfe.\x00*\x00\x5B\x00\\\x00\\\x00/\x00\x5D\x00(\x00?\x00P\x00<\x00N\x00u\x00m\x00b\x00e\x00r\x00>\x00.\x00*\x00)\x00
     Extract metadata from:\xff\xfeA\x00l\x00l\x00 \x00i\x00m\x00a\x00g\x00e\x00s\x00
     Select the filtering criteria:\xff\xfea\x00n\x00d\x00 \x00(\x00f\x00i\x00l\x00e\x00 \x00d\x00o\x00e\x00s\x00 \x00c\x00o\x00n\x00t\x00a\x00i\x00n\x00 \x00"\x00.\x00b\x00m\x00p\x00"\x00)\x00
@@ -43,13 +43,13 @@ NamesAndTypes:[module_num:3|svn_version:\'Unknown\'|variable_revision_number:8|s
     Select the rule criteria:\xff\xfeo\x00r\x00 \x00(\x00f\x00i\x00l\x00e\x00 \x00d\x00o\x00e\x00s\x00n\x00o\x00t\x00 \x00c\x00o\x00n\x00t\x00a\x00i\x00n\x00 \x00"\x00_\x00"\x00)\x00
     Name to assign these images:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00
     Name to assign these objects:\xff\xfeC\x00e\x00l\x00l\x00
-    Select the image type:\xff\xfeG\x00r\x00a\x00y\x00s\x00c\x00a\x00l\x00e\x00 \x00i\x00m\x00a\x00g\x00e\x00
+    Select the image type:\xff\xfeC\x00o\x00l\x00o\x00r\x00 \x00i\x00m\x00a\x00g\x00e\x00
     Set intensity range from:\xff\xfeI\x00m\x00a\x00g\x00e\x00 \x00m\x00e\x00t\x00a\x00d\x00a\x00t\x00a\x00
     Maximum intensity:\xff\xfe2\x005\x005\x00.\x000\x00
     Select the rule criteria:\xff\xfeo\x00r\x00 \x00(\x00f\x00i\x00l\x00e\x00 \x00d\x00o\x00e\x00s\x00 \x00c\x00o\x00n\x00t\x00a\x00i\x00n\x00 \x00"\x00_\x00"\x00)\x00
     Name to assign these images:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00M\x00a\x00s\x00k\x00
     Name to assign these objects:\xff\xfeC\x00e\x00l\x00l\x00
-    Select the image type:\xff\xfeG\x00r\x00a\x00y\x00s\x00c\x00a\x00l\x00e\x00 \x00i\x00m\x00a\x00g\x00e\x00
+    Select the image type:\xff\xfeC\x00o\x00l\x00o\x00r\x00 \x00i\x00m\x00a\x00g\x00e\x00
     Set intensity range from:\xff\xfeI\x00m\x00a\x00g\x00e\x00 \x00m\x00e\x00t\x00a\x00d\x00a\x00t\x00a\x00
     Maximum intensity:\xff\xfe2\x005\x005\x00.\x000\x00
 
@@ -58,8 +58,58 @@ Groups:[module_num:4|svn_version:\'Unknown\'|variable_revision_number:2|show_win
     grouping metadata count:\xff\xfe1\x00
     Metadata category:\xff\xfeF\x00r\x00a\x00m\x00e\x00
 
-IdentifyPrimaryObjects:[module_num:5|svn_version:\'Unknown\'|variable_revision_number:13|show_window:True|notes:\x5B\'Identifying the wells to use as objects to define the grid \'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+ColorToGray:[module_num:5|svn_version:\'Unknown\'|variable_revision_number:4|show_window:True|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00
+    Conversion method:\xff\xfeC\x00o\x00m\x00b\x00i\x00n\x00e\x00
+    Image type:\xff\xfeR\x00G\x00B\x00
+    Name the output image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00_\x00G\x00S\x00
+    Relative weight of the red channel:\xff\xfe1\x00.\x000\x00
+    Relative weight of the green channel:\xff\xfe1\x00.\x000\x00
+    Relative weight of the blue channel:\xff\xfe1\x00.\x000\x00
+    Convert red to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00R\x00e\x00d\x00
+    Convert green to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00G\x00r\x00e\x00e\x00n\x00
+    Convert blue to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00B\x00l\x00u\x00e\x00
+    Convert hue to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00H\x00u\x00e\x00
+    Convert saturation to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00S\x00a\x00t\x00u\x00r\x00a\x00t\x00i\x00o\x00n\x00
+    Convert value to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00V\x00a\x00l\x00u\x00e\x00
+    Channel count:\xff\xfe1\x00
+    Channel number:\xff\xfe1\x00
+    Relative weight of the channel:\xff\xfe1\x00.\x000\x00
+    Image name:\xff\xfeC\x00h\x00a\x00n\x00n\x00e\x00l\x001\x00
+
+ColorToGray:[module_num:6|svn_version:\'Unknown\'|variable_revision_number:4|show_window:True|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
     Select the input image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00M\x00a\x00s\x00k\x00
+    Conversion method:\xff\xfeC\x00o\x00m\x00b\x00i\x00n\x00e\x00
+    Image type:\xff\xfeR\x00G\x00B\x00
+    Name the output image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00M\x00a\x00s\x00k\x00_\x00G\x00S\x00
+    Relative weight of the red channel:\xff\xfe1\x00.\x000\x00
+    Relative weight of the green channel:\xff\xfe1\x00.\x000\x00
+    Relative weight of the blue channel:\xff\xfe1\x00.\x000\x00
+    Convert red to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00R\x00e\x00d\x00
+    Convert green to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00G\x00r\x00e\x00e\x00n\x00
+    Convert blue to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00B\x00l\x00u\x00e\x00
+    Convert hue to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00H\x00u\x00e\x00
+    Convert saturation to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00S\x00a\x00t\x00u\x00r\x00a\x00t\x00i\x00o\x00n\x00
+    Convert value to gray?:\xff\xfeY\x00e\x00s\x00
+    Name the output image:\xff\xfeO\x00r\x00i\x00g\x00V\x00a\x00l\x00u\x00e\x00
+    Channel count:\xff\xfe1\x00
+    Channel number:\xff\xfe1\x00
+    Relative weight of the channel:\xff\xfe1\x00.\x000\x00
+    Image name:\xff\xfeC\x00h\x00a\x00n\x00n\x00e\x00l\x001\x00
+
+IdentifyPrimaryObjects:[module_num:7|svn_version:\'Unknown\'|variable_revision_number:13|show_window:True|notes:\x5B\'Identifying the wells to use as objects to define the grid \'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00M\x00a\x00s\x00k\x00_\x00G\x00S\x00
     Name the primary objects to be identified:\xff\xfeW\x00e\x00l\x00l\x00s\x00f\x00o\x00r\x00G\x00r\x00i\x00d\x00
     Typical diameter of objects, in pixel units (Min,Max):\xff\xfe7\x000\x00,\x001\x000\x000\x00
     Discard objects outside the diameter range?:\xff\xfeY\x00e\x00s\x00
@@ -93,7 +143,7 @@ IdentifyPrimaryObjects:[module_num:5|svn_version:\'Unknown\'|variable_revision_n
     # of deviations:\xff\xfe2\x00.\x000\x00
     Thresholding method:\xff\xfeO\x00t\x00s\x00u\x00
 
-DefineGrid:[module_num:6|svn_version:\'Unknown\'|variable_revision_number:1|show_window:True|notes:\x5B\'Using the previous modules objects to generate a grid, and outputing over edged image to prepare for worm identification of highlighted worms. Using the grid will number the worms and get rid of some background.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+DefineGrid:[module_num:8|svn_version:\'Unknown\'|variable_revision_number:1|show_window:True|notes:\x5B\'Using the previous modules objects to generate a grid, and outputing over edged image to prepare for worm identification of highlighted worms. Using the grid will number the worms and get rid of some background.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
     Name the grid:\xff\xfeG\x00r\x00i\x00d\x00
     Number of rows:\xff\xfe8\x00
     Number of columns:\xff\xfe1\x002\x00
@@ -115,7 +165,7 @@ DefineGrid:[module_num:6|svn_version:\'Unknown\'|variable_revision_number:1|show
     Select the image on which to display the grid:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00
     Use a previous grid if gridding fails?:\xff\xfeN\x00o\x00
 
-IdentifyObjectsInGrid:[module_num:7|svn_version:\'Unknown\'|variable_revision_number:3|show_window:True|notes:\x5B\'\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:True]
+IdentifyObjectsInGrid:[module_num:9|svn_version:\'Unknown\'|variable_revision_number:3|show_window:True|notes:\x5B\'\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:True]
     Select the defined grid:\xff\xfeG\x00r\x00i\x00d\x00
     Name the objects to be identified:\xff\xfeG\x00r\x00i\x00d\x00W\x00e\x00l\x00l\x00s\x00
     Select object shapes and locations:\xff\xfeR\x00e\x00c\x00t\x00a\x00n\x00g\x00l\x00e\x00 \x00F\x00o\x00r\x00c\x00e\x00d\x00 \x00L\x00o\x00c\x00a\x00t\x00i\x00o\x00n\x00
@@ -123,14 +173,14 @@ IdentifyObjectsInGrid:[module_num:7|svn_version:\'Unknown\'|variable_revision_nu
     Circle diameter:\xff\xfe7\x000\x00
     Select the guiding objects:\xff\xfeW\x00e\x00l\x00l\x00s\x00f\x00o\x00r\x00G\x00r\x00i\x00d\x00
 
-SaveCroppedObjects:[module_num:8|svn_version:\'Unknown\'|variable_revision_number:2|show_window:True|notes:\x5B\'Saves a cropped image of each worm in its well for analysis using RandIndex. Uses GridWells as circle outline to remove more background.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:True]
+SaveCroppedObjects:[module_num:10|svn_version:\'Unknown\'|variable_revision_number:2|show_window:True|notes:\x5B\'Saves a cropped image of each worm in its well for analysis using RandIndex. Uses GridWells as circle outline to remove more background.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:True]
     Objects:\xff\xfeG\x00r\x00i\x00d\x00W\x00e\x00l\x00l\x00s\x00
     Directory:\xff\xfeD\x00e\x00f\x00a\x00u\x00l\x00t\x00 \x00O\x00u\x00t\x00p\x00u\x00t\x00 \x00F\x00o\x00l\x00d\x00e\x00r\x00 \x00s\x00u\x00b\x00-\x00f\x00o\x00l\x00d\x00e\x00r\x00\x7C\x00\\\x00g\x00<\x00T\x00i\x00m\x00e\x00>\x00/\x00
     Saved file format:\xff\xfep\x00n\x00g\x00
     Do you want to save cropped images or object masks?:\xff\xfeI\x00m\x00a\x00g\x00e\x00s\x00
-    Image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00
+    Image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00I\x00m\x00a\x00g\x00e\x00_\x00G\x00S\x00
 
-SaveImages:[module_num:9|svn_version:\'Unknown\'|variable_revision_number:13|show_window:True|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+SaveImages:[module_num:11|svn_version:\'Unknown\'|variable_revision_number:13|show_window:True|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
     Select the type of image to save:\xff\xfeI\x00m\x00a\x00g\x00e\x00
     Select the image to save:\xff\xfeG\x00r\x00i\x00d\x00e\x00d\x00E\x00d\x00g\x00e\x00d\x00W\x00o\x00r\x00m\x00s\x00
     Select method for constructing file names:\xff\xfeF\x00r\x00o\x00m\x00 \x00i\x00m\x00a\x00g\x00e\x00 \x00f\x00i\x00l\x00e\x00n\x00a\x00m\x00e\x00
@@ -139,7 +189,7 @@ SaveImages:[module_num:9|svn_version:\'Unknown\'|variable_revision_number:13|sho
     Number of digits:\xff\xfe4\x00
     Append a suffix to the image file name?:\xff\xfeN\x00o\x00
     Text to append to the image name:\xff\xfe
-    Saved file format:\xff\xfep\x00n\x00g\x00
+    Saved file format:\xff\xfej\x00p\x00e\x00g\x00
     Output file location:\xff\xfeD\x00e\x00f\x00a\x00u\x00l\x00t\x00 \x00O\x00u\x00t\x00p\x00u\x00t\x00 \x00F\x00o\x00l\x00d\x00e\x00r\x00\x7C\x00
     Image bit depth:\xff\xfe8\x00-\x00b\x00i\x00t\x00 \x00i\x00n\x00t\x00e\x00g\x00e\x00r\x00
     Overwrite existing files without warning?:\xff\xfeN\x00o\x00

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.3
+# Version: 0.4
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-10-10
+# Modified in: 2020-10-18
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.4 - 2020-10-18: add frame alignment step / update path to diff script / remove unnecessary code
 # v0.3 - 2020-10-10: use mask to identify well / replace RandIndex by a simpler image difference index / improve input file check
 # v0.2 - 2020-10-07: negate and threshold image during the equalization step
 # v0.1 - 2020-09-14: add equalization step
@@ -144,6 +145,7 @@ function clean_up {
 test_dep ffmpeg
 test_dep convert
 test_dep cellprofiler
+test_dep align_image_stack
 
 
 
@@ -192,14 +194,12 @@ done
 # Directory variables
 dir_frames=frames
 dir_wells=wells
-dir_index=index
 dir_log=$(mktemp -d)
 dir_pipelines="$(dirname $0)/cellprofiler_pipelines"
 
 # Log variables
 log_movie="$dir_log/log_movie"
 log_wells="$dir_log/log_wells"
-log_index="$dir_log/log_index"
 
 
 
@@ -208,7 +208,7 @@ log_index="$dir_log/log_index"
 #============#
 
 # Trap function
-trap "clean_up $dir_frames $dir_wells $dir_index $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
+trap "clean_up $dir_frames $dir_wells $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
 
 #--------------------#
 # Output directories #
@@ -216,7 +216,6 @@ trap "clean_up $dir_frames $dir_wells $dir_index $dir_log" SIGINT SIGTERM    # C
 
 [[ ! -d "$dir_frames" ]] && mkdir -p "$dir_frames"
 [[ ! -d "$dir_wells" ]]  && mkdir -p "$dir_wells"
-[[ ! -d "$dir_index" ]]  && mkdir -p "$dir_index"
 
 
 #--------------#
@@ -245,21 +244,35 @@ do
     [[ $tag -eq 1 ]] && tag=2 || tag=1
 done
 
+# Align frames
+info "Realigning images. This may take time..."
+align_image_stack -a "$dir_frames/" --use-given-order "$dir_frames/"*.png &> "$log_wells"
+
+# Rename aligned frames to the original name
+ls_fl=$(paste <(find "$dir_frames/" -mindepth 1 -name *tif) <(find "$dir_frames/" -mindepth 1 -name *png | sort | sed "s/png$/tif/"))
+while read l
+do
+    mv "$(cut -f 1 <<< "$l")" "$(cut -f 2 <<< "$l")"
+done <<< "$ls_fl"
+
+# Remove unaligned frames
+rm "$dir_frames/"*.png
+
 # Generate mask
 info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
-convert "$file" -equalize -negate -threshold $trsh% "$(dirname "$file")/mask_ent.png"
+convert "$file" -equalize -negate -threshold $trsh% "$(dirname "$file")/mask_ent.tif"
 for i in $(seq 1 $length)
 do
     #ProgressBar 10#$i $length
     file=$(sed -n "${i}p" <<< "$flist")
-	cp -a "$(dirname "$file")/mask_ent.png" "${file%.*}_ent.png"
+	cp -a "$(dirname "$file")/mask_ent.tif" "${file%.*}_ent.tif"
 done
 
 # Remove mask
-rm "$(dirname "$file")/mask_ent.png"
+rm "$(dirname "$file")/mask_ent.tif"
 
 
 #---------------#
@@ -282,7 +295,7 @@ for ((i = 0 ; i < $dend ; i++))
 do
     j=$(($i + 1))
     ProgressBar 10#$j $dend
-    ./diff_image.sh ${dlist[$i]} ${dlist[$j]} "$dir_wells/${dlist[$i]##*/}-${dlist[$j]##*/}.tab"
+    "$(dirname $0)/diff_image.sh" ${dlist[$i]} ${dlist[$j]} "$dir_wells/${dlist[$i]##*/}-${dlist[$j]##*/}.tab"
 done
 
 
