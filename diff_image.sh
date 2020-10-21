@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: diff_image.sh 
-# Version: 0.0
+# Version: 0.1
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-10-10
-# Modified in: 
+# Modified in: 2020-10-20
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim="Compare a pair of images and determine how much difference (error) there is
 # Versions #
 #==========#
 
+# v0.1 - 2020-10-20: change image comparison method to overcome background noise / improve listing of files
 # v0.0 - 2020-10-10: creation
 
 version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
@@ -66,12 +67,12 @@ output="$3"
 #============#
 
 # List file and check if the same sets are present
-flist_1=$(ls -1d "$mydir_1"/*)
-flist_2=$(ls -1d "$mydir_2"/*)
+flist_1=$(ls -1d "$mydir_1"/* | sed "s|.*/||g" | sort -V)
+flist_2=$(ls -1d "$mydir_2"/* | sed "s|.*/||g" | sort -V)
 
-[[ "$flist_2" != "$flist_2" ]] && echo "List of files do not match."
+[[ "$flist_2" != "$flist_2" ]] && echo "List of files does not match."
 
-flist="$(sed "s|.*/||g" <<< "$flist_1")"
+flist="$flist_1"
 length=$(wc -l <<< "$flist")
 
 # Compute image differences
@@ -81,8 +82,7 @@ do
     myfile="$(sed -n "${i}p" <<< "$flist")"
 
     ## source: http://www.imagemagick.org/Usage/compare/#difference
-    # mymetric=$(compare -metric MAE "$mydir_1/$myfile" "$mydir_2/$myfile" null: 2>&1 | sed "s/[()]//g")
-    mymetric=$(compare -metric PSNR "$mydir_1/$myfile" "$mydir_2/$myfile" null: 2>&1 | sed "s/[()]//g") # This seems better than MAE
+    mymetric=$(compare -metric AE -fuzz 10% "$mydir_1/$myfile" "$mydir_2/$myfile" null: 2>&1 | sed "s/[()]//g")
 
     echo "$myfile $mymetric" >> "$output"
 done
