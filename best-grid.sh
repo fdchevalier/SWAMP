@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: best-grid.sh
-# Version: 0.0
+# Version: 0.1
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-10-11
-# Modified in: 
+# Modified in: 2020-10-22 
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim="Determine the best grid by testing several thresold values."
 # Versions #
 #==========#
 
+# v0.1 - 2020-10-22: add png to tif convertion / replace info message / remove unnecessary code
 # v0.0 - 2020-10-11: creation
 
 version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
@@ -182,14 +183,12 @@ done
 # Directory variables
 dir_frames=frames_test
 dir_wells=grid_test
-dir_index=index
 dir_log=$(mktemp -d)
 dir_pipelines="$(dirname $0)/cellprofiler_pipelines"
 
 # Log variables
 log_movie="$dir_log/log_movie"
 log_wells="$dir_log/log_wells"
-log_index="$dir_log/log_index"
 
 
 
@@ -198,7 +197,7 @@ log_index="$dir_log/log_index"
 #============#
 
 # Trap function
-trap "clean_up $dir_frames $dir_wells $dir_index $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
+trap "clean_up $dir_frames $dir_wells $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
 
 #--------------------#
 # Output directories #
@@ -206,7 +205,6 @@ trap "clean_up $dir_frames $dir_wells $dir_index $dir_log" SIGINT SIGTERM    # C
 
 [[ ! -d "$dir_frames" ]] && mkdir -p "$dir_frames"
 [[ ! -d "$dir_wells" ]]  && mkdir -p "$dir_wells"
-[[ ! -d "$dir_index" ]]  && mkdir -p "$dir_index"
 
 
 #--------------#
@@ -217,27 +215,33 @@ info "Extracting frames..."
 
 # Extract frames
 ## source: https://stackoverflow.com/a/28321986 (it was demonstrated to be faster)
-ffmpeg -y -accurate_seek -ss $time -i "$movie" -frames:v 1 "$dir_frames/$start-1.png" &>> "$log_movie"
+ffmpeg -y -accurate_seek -ss $time -i "$movie" -frames:v 1 "$dir_frames/$time.png" &>> "$log_movie"
 
-# Equalize frames
-info "Equalizing, negating and thresholding frames..."
+# Convert png to tif
+convert "$dir_frames/$time.png" "$dir_frames/$time.tif"
+rm "$dir_frames/$time.png"
+
+info "Identifying grid for each threshold..."
+# Store frame
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
 
-info "Extracting individual wells. This may take a while..."
+# Run pipeline for each threshold
 myseq=$(seq -w $start $int $stop)
 stop_real=$(tail -n 1 <<<"$myseq")
 for i in $myseq
 do
-    ProgressBar 10#$i $stop
-    convert "$file" -equalize -negate -threshold $i% "$(dirname "$file")/mask_ent.png"
-    cp -a "$(dirname "$file")/mask_ent.png" "${file%.*}_ent.png"
+    ProgressBar $(( 10#$i + 1 )) ${#myseq[@]}
+    convert "$file" -equalize -negate -threshold ${myseq[$i]}% "$(dirname "$file")/mask_ent.tif"
 
     cellprofiler -c -r -p "$dir_pipelines/Grid determinator.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells"
     # [[ $? -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
 
-    [[ -f "$dir_wells/$start-1.png" ]] && mv "$dir_wells/$start-1.png" "$dir_wells/$start-1_$i.png"
+    [[ -f "$dir_wells/$time.png" ]] && mv "$dir_wells/${time}.png" "$dir_wells/${time}_${myseq[$i]}.png"
 done
+
+# Clean
+rm -R "$dir_frames"
 
 exit 0
