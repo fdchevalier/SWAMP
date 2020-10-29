@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.4
+# Version: 0.5
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-10-18
+# Modified in: 2020-10-29
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.5 - 2020-10-29: add well numbering and a reverse option for reversed plate / make input type checking more universal / add progress check for CellProfiler output / add Rscript for analyzing results
 # v0.4 - 2020-10-18: add frame alignment step / update path to diff script / remove unnecessary code
 # v0.3 - 2020-10-10: use mask to identify well / replace RandIndex by a simpler image difference index / improve input file check
 # v0.2 - 2020-10-07: negate and threshold image during the equalization step
@@ -37,7 +38,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -p|--stop value -n|--int value -t|--trsh value -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -p|--stop value -n|--int value -t|--trsh value -r|--rev -h|--help
 
 Aim: $aim
 
@@ -45,11 +46,12 @@ Version: $version
 
 Options:
     -i, --in        input video file
-    -o, --output    name of the output file [default: RandIndex_table.tsv]
+    -o, --output    name prefix of the output file [default: inputname_]
     -a, --start     video time in second at which to start the analysis (integer) [default: 0]
     -p, --stop      video time in second at which to stop the analysis (integer) [default: 180]
     -n, --int       interval in second for sampling frame (integer) [default: 5]
     -t, --trsh      percentage of thresholding for well recognition (integer) [default: 60]
+    -r, --rev       revert plate layout (A01 in the bottom right)
     -h, --help      this message
     "
 }
@@ -129,6 +131,20 @@ function ProgressBar {
 }
 
 
+# Check progress
+## Usage: ProgressCheck $myfolder $myext $myend $mypid
+function ProgressCheck {
+    while :
+    do
+        nb_fl=$(find "$1" -mindepth 1 -maxdepth 1 -type f -name *$2 | wc -l)
+        ProgressBar $nb_fl $3
+        sleep 1
+        [[ ! $(ps  -p $mypid -o pid=) && $(wait $mypid ; echo $?) -ne 0 ]] && echo '' && break
+        [[ "$nb_fl" -eq "$3" ]] && break
+    done
+}
+
+
 # Clean up function for trap command
 ## Usage: clean_up file1 file2 ...
 function clean_up {
@@ -163,6 +179,7 @@ do
         -p|--stop   ) stop="$2"   ; shift 2 ;;
         -n|--int    ) int="$2"    ; shift 2 ;;
         -t|--trsh   ) trsh="$2"   ; shift 2 ;;
+        -r|--rev    ) rev="rev"   ; shift 1 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -172,10 +189,10 @@ done
 # Check the existence of obligatory options
 [[ -z "$movie" ]] && error "The option input is required. Exiting...\n$(usage)" 1
 [[ ! -s "$movie" ]] && error "The input video does not exist or is empty. Exiting...\n$(usage)" 1
-[[ ! $(mimetype -bL "$movie" | grep -i video) ]] && error "The input is not a video file. Exiting...\n$(usage)" 1
+[[ ! $(file --mime -bL "$movie" | grep -i video) ]] && error "The input is not a video file. Exiting...\n$(usage)" 1
 
 # Check output variable and files
-[[ -z "$output" ]] && output="RandIndex_table.tsv"
+[[ -z "$output" ]] && output="$(basename $(echo "${movie%.*}"))"
 [[ -f "$output" ]] && error "Output file $output exists already. Exiting..." 1
 
 # Default values for video time
@@ -280,8 +297,9 @@ rm "$(dirname "$file")/mask_ent.tif"
 #---------------#
 
 info "Extracting individual wells. This may take a while..."
-cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells" &> "$log_wells"
-[[ $? -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
+cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells" & mypid=$!
+ProgressCheck "$dir_wells/" jpeg $length $mypid
+[[ $(wait $mypid ; echo $?) -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
 
 
 #--------------------------#
@@ -307,25 +325,31 @@ info "Generating final table..."
 
 ls_fl=($(find "$dir_wells" -mindepth 1 -type f -name *.tab | sort))
 
+# Well numbering
+[[ -n $rev ]] && mywells={H..A}{12..01} || mywells={A..H}{01..12}
+
+# Store well numbering as first column
+mymean="Well\n$(eval echo $mywells | tr " " "\n")"
+
 for i in ${!ls_fl[@]}
 do
     ProgressBar 10#$(($i + 1)) ${#ls_fl[@]}
     
-    if [[ $i == 0 ]]
-    then
-        myheader="Well\t$(sed -r "s|.*/(.*).tab|\1|g" <<< "${ls_fl[$i]}")"
-        mymean=$(cat <(echo "$myheader") <(sed "s| |\t|g" "${ls_fl[$i]}" | cut -f 1-2))
-        myerror=$(cat <(echo "$myheader") <(sed "s| |\t|g" "${ls_fl[$i]}" | cut -f 1,3))
-    else
-        myheader="$(sed -r "s|.*/(.*).tab|\1|g" <<< "${ls_fl[$i]}")"
-        mymean=$(paste <(echo "$mymean") <(cat <(echo "$myheader") <(cut -d " " -f 2 "${ls_fl[$i]}")))
-        myerror=$(paste <(echo "$myerror") <(cat <(echo "$myheader") <(cut -d " " -f 3 "${ls_fl[$i]}")))
-    fi
+    myheader="$(sed -r "s|.*/(.*).tab|\1|g" <<< "${ls_fl[$i]}")"
+    mymean=$(paste <(echo -e "$mymean") <(cat <(echo "$myheader") <(cut -d " " -f 2 "${ls_fl[$i]}")))
 
 done
 
 echo -e "$mymean"  >> "${output}_mymean.tsv"
-echo -e "$myerror" >> "${output}_myerror.tsv"
+
+
+#---------------------#
+# Analyze final table #
+#---------------------#
+
+info "Analyzing final table..."
+
+Rscript "$(dirname $0)/quant_mvt.R" -f "${output}_mymean.tsv" -l layout.csv
 
 
 #-------#
