@@ -111,7 +111,7 @@ ColorToGray:[module_num:6|svn_version:\'Unknown\'|variable_revision_number:4|sho
 IdentifyPrimaryObjects:[module_num:7|svn_version:\'Unknown\'|variable_revision_number:13|show_window:True|notes:\x5B\'Identifying the wells to use as objects to define the grid \'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
     Select the input image:\xff\xfeR\x00a\x00w\x00D\x00a\x00t\x00a\x00M\x00a\x00s\x00k\x00_\x00G\x00S\x00
     Name the primary objects to be identified:\xff\xfeW\x00e\x00l\x00l\x00s\x00f\x00o\x00r\x00G\x00r\x00i\x00d\x00
-    Typical diameter of objects, in pixel units (Min,Max):\xff\xfe9\x000\x00,\x001\x001\x000\x00
+    Typical diameter of objects, in pixel units (Min,Max):\xff\xfe8\x005\x00,\x001\x002\x005\x00
     Discard objects outside the diameter range?:\xff\xfeY\x00e\x00s\x00
     Discard objects touching the border of the image?:\xff\xfeY\x00e\x00s\x00
     Method to distinguish clumped objects:\xff\xfeI\x00n\x00t\x00e\x00n\x00s\x00i\x00t\x00y\x00
