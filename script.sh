@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: 
-# Version: 0.5
+# Version: 0.6
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-10-29
+# Modified in: 2020-11-04
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.6 - 2020-11-04: improve mask generation
 # v0.5 - 2020-10-29: add well numbering and a reverse option for reversed plate / make input type checking more universal / add progress check for CellProfiler output / add Rscript for analyzing results
 # v0.4 - 2020-10-18: add frame alignment step / update path to diff script / remove unnecessary code
 # v0.3 - 2020-10-10: use mask to identify well / replace RandIndex by a simpler image difference index / improve input file check
@@ -280,7 +281,7 @@ info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
-convert "$file" -equalize -negate -threshold $trsh% "$(dirname "$file")/mask_ent.tif"
+convert "$file"  -auto-level  -fuzz 25% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate "$(dirname "$file")/mask_ent.tif"
 for i in $(seq 1 $length)
 do
     #ProgressBar 10#$i $length
