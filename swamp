@@ -1,9 +1,9 @@
 #!/bin/bash
-# Title: 
-# Version: 0.6
+# Title: swamp
+# Version: 0.7
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-11-04
+# Modified in: 2020-11-24
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.7 - 2020-11-24: rename script / add new options related to layout and folder prefix / improve frame alignment using align-to-first option / change default one value / correct typos
 # v0.6 - 2020-11-04: improve mask generation
 # v0.5 - 2020-10-29: add well numbering and a reverse option for reversed plate / make input type checking more universal / add progress check for CellProfiler output / add Rscript for analyzing results
 # v0.4 - 2020-10-18: add frame alignment step / update path to diff script / remove unnecessary code
@@ -39,7 +40,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -p|--stop value -n|--int value -t|--trsh value -r|--rev -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -n|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -h|--help
 
 Aim: $aim
 
@@ -49,10 +50,12 @@ Options:
     -i, --in        input video file
     -o, --output    name prefix of the output file [default: inputname_]
     -a, --start     video time in second at which to start the analysis (integer) [default: 0]
-    -p, --stop      video time in second at which to stop the analysis (integer) [default: 180]
+    -s, --stop      video time in second at which to stop the analysis (integer) [default: 180]
     -n, --int       interval in second for sampling frame (integer) [default: 5]
-    -t, --trsh      percentage of thresholding for well recognition (integer) [default: 60]
+    -t, --trsh      percentage of thresholding for well recognition (integer) [default: 7]
     -r, --rev       revert plate layout (A01 in the bottom right)
+    -l, --layout    plate layout file
+    -p, --prefix    prefix of the folder to store results [default: .]
     -h, --help      this message
     "
 }
@@ -163,6 +166,7 @@ test_dep ffmpeg
 test_dep convert
 test_dep cellprofiler
 test_dep align_image_stack
+test_dep Rscript
 
 
 
@@ -177,10 +181,12 @@ do
         -i|--in     ) movie="$2"  ; shift 2 ;;
         -o|--output ) output="$2" ; shift 2 ;;
         -a|--start  ) start="$2"  ; shift 2 ;;
-        -p|--stop   ) stop="$2"   ; shift 2 ;;
+        -s|--stop   ) stop="$2"   ; shift 2 ;;
         -n|--int    ) int="$2"    ; shift 2 ;;
         -t|--trsh   ) trsh="$2"   ; shift 2 ;;
         -r|--rev    ) rev="rev"   ; shift 1 ;;
+        -l|--layout ) layout="$2" ; shift 2 ;;
+        -p|--prefix ) prefix="$2" ; shift 2 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -196,11 +202,18 @@ done
 [[ -z "$output" ]] && output="$(basename $(echo "${movie%.*}"))"
 [[ -f "$output" ]] && error "Output file $output exists already. Exiting..." 1
 
+# Check prefix
+[[ -d "$prefix" ]] && error "Folder $prefix exists already. Existing..." 1
+[[ -z "$prefix" ]] && prefix="."
+
+# Check layout (text file / non empty)
+[[ ! -s "$layout" ]] && error "The layout file does not exist or is empty. Exiting..." 1
+
 # Default values for video time
 [[ -z "$start" ]] && start=0
 [[ -z "$stop" ]]  && stop=180
 [[ -z "$int" ]]   && int=5
-[[ -z "$trsh" ]]  && trsh=60
+[[ -z "$trsh" ]]  && trsh=7
 
 # Check related values to video time
 [[ ! $(grep -x "[[:digit:]]*" <<<"$start") || ! $(grep -x "[[:digit:]]*" <<<"$int") || ! $(grep -x "[[:digit:]]*" <<<"$stop") ]] && error "The option start, stop and int must be integers. Exiting..." 1
@@ -210,8 +223,8 @@ done
 [[ ! $(grep -x "[[:digit:]]*" <<<"$trsh") || $trsh -lt 0 || $trsh -gt 100 ]] && error "The option trsh must be a number between 0 and 100. Exiting..." 1
 
 # Directory variables
-dir_frames=frames
-dir_wells=wells
+dir_frames="$prefix/frames"
+dir_wells="$prefix/wells"
 dir_log=$(mktemp -d)
 dir_pipelines="$(dirname $0)/cellprofiler_pipelines"
 
@@ -264,7 +277,7 @@ done
 
 # Align frames
 info "Realigning images. This may take time..."
-align_image_stack -a "$dir_frames/" --use-given-order "$dir_frames/"*.png &> "$log_wells"
+align_image_stack -a "$dir_frames/" --align-to-first "$dir_frames/"*.png &> "$log_wells"
 
 # Rename aligned frames to the original name
 ls_fl=$(paste <(find "$dir_frames/" -mindepth 1 -name *tif) <(find "$dir_frames/" -mindepth 1 -name *png | sort | sed "s/png$/tif/"))
@@ -341,7 +354,7 @@ do
 
 done
 
-echo -e "$mymean"  >> "${output}_mymean.tsv"
+echo -e "$mymean"  > "${output}_mymean.tsv"
 
 
 #---------------------#
@@ -350,7 +363,7 @@ echo -e "$mymean"  >> "${output}_mymean.tsv"
 
 info "Analyzing final table..."
 
-Rscript "$(dirname $0)/quant_mvt.R" -f "${output}_mymean.tsv" -l layout.csv
+Rscript "$(dirname $0)/quant_mvt.R" -f "${output}_mymean.tsv" -l "$layout" -p "$prefix"
 
 
 #-------#

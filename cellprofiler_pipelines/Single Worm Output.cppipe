@@ -147,7 +147,7 @@ DefineGrid:[module_num:8|svn_version:\'Unknown\'|variable_revision_number:1|show
     Name the grid:\xff\xfeG\x00r\x00i\x00d\x00
     Number of rows:\xff\xfe8\x00
     Number of columns:\xff\xfe1\x002\x00
-    Location of the first spot:\xff\xfeT\x00o\x00p\x00 \x00l\x00e\x00f\x00t\x00
+    Location of the first spot:\xff\xfeT\x00o\x00p\x00 \x00r\x00i\x00g\x00h\x00t\x00
     Order of the spots:\xff\xfeC\x00o\x00l\x00u\x00m\x00n\x00s\x00
     Define a grid for which cycle?:\xff\xfeO\x00n\x00c\x00e\x00
     Select the method to define the grid:\xff\xfeA\x00u\x00t\x00o\x00m\x00a\x00t\x00i\x00c\x00
