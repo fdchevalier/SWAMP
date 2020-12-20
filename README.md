@@ -34,7 +34,7 @@ These dependencies can be installed manually. Alternatively, they can be install
 conda create env -f .env/env.yml
 ```
 
-**N.B.**: The conda yml file installs only CellProfiler and ffmpeg for now. This will be improved in a near future.
+**N.B.**: The conda yml file installs only CellProfiler, FFmpeg, and ImageMagick for now. Installation of the other dependencies will be added in a near future.
 
 
 ## Files
@@ -60,6 +60,8 @@ For convenience, the script should be accessible system-wide by either including
 <!-- Details about usage are available in the [documentation](Documentation/xxx.pdf). -->
 
 ## Usage
+
+If the conda environment is set up, the environment must be activated using the following command: `conda activate swamp`.
 
 A summary of available options can be displayed using `./script.sh -h`.
 
