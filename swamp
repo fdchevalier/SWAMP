@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: swamp
-# Version: 0.7
+# Version: 0.8
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2020-11-24
+# Modified in: 2021-01-15
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.8 - 2021-01-15: add test mode / check video length / adjust fuzz level
 # v0.7 - 2020-11-24: rename script / add new options related to layout and folder prefix / improve frame alignment using align-to-first option / change default one value / correct typos
 # v0.6 - 2020-11-04: improve mask generation
 # v0.5 - 2020-10-29: add well numbering and a reverse option for reversed plate / make input type checking more universal / add progress check for CellProfiler output / add Rscript for analyzing results
@@ -40,7 +41,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -n|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -v|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -n|--test -h|--help
 
 Aim: $aim
 
@@ -51,11 +52,12 @@ Options:
     -o, --output    name prefix of the output file [default: inputname_]
     -a, --start     video time in second at which to start the analysis (integer) [default: 0]
     -s, --stop      video time in second at which to stop the analysis (integer) [default: 180]
-    -n, --int       interval in second for sampling frame (integer) [default: 5]
+    -v, --int       interval in second for sampling frame (integer) [default: 5]
     -t, --trsh      percentage of thresholding for well recognition (integer) [default: 7]
     -r, --rev       revert plate layout (A01 in the bottom right)
     -l, --layout    plate layout file
     -p, --prefix    prefix of the folder to store results [default: .]
+    -n, --test      analyze only the first frame to test the grid position
     -h, --help      this message
     "
 }
@@ -182,11 +184,12 @@ do
         -o|--output ) output="$2" ; shift 2 ;;
         -a|--start  ) start="$2"  ; shift 2 ;;
         -s|--stop   ) stop="$2"   ; shift 2 ;;
-        -n|--int    ) int="$2"    ; shift 2 ;;
+        -v|--int    ) int="$2"    ; shift 2 ;;
         -t|--trsh   ) trsh="$2"   ; shift 2 ;;
         -r|--rev    ) rev="rev"   ; shift 1 ;;
         -l|--layout ) layout="$2" ; shift 2 ;;
         -p|--prefix ) prefix="$2" ; shift 2 ;;
+        -n|--test   ) test="test" ; shift 1 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -222,6 +225,9 @@ done
 # Check thresholding value
 [[ ! $(grep -x "[[:digit:]]*" <<<"$trsh") || $trsh -lt 0 || $trsh -gt 100 ]] && error "The option trsh must be a number between 0 and 100. Exiting..." 1
 
+# Test mode
+[[ -n "$test" ]] && stop=$(( $start + $int))
+
 # Directory variables
 dir_frames="$prefix/frames"
 dir_wells="$prefix/wells"
@@ -240,6 +246,10 @@ log_wells="$dir_log/log_wells"
 
 # Trap function
 trap "clean_up $dir_frames $dir_wells $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
+
+# Test mode message
+[[ -n $test ]] && warning "Test mode. Only first frame analyzed."
+
 
 #--------------------#
 # Output directories #
@@ -263,6 +273,9 @@ then
     warning "Final frame will be at ${stop_real}s."
     stop=$stop_real
 fi
+
+# Check video length
+[[ $stop -gt $(ffprobe -i "$movie" -show_entries format=duration -v quiet -of csv="p=0" | cut -d "." -f 1) ]] && error "The video is shorter than the specified time. Exiting... " 1
 
 # Extract frames
 ## source: https://stackoverflow.com/a/28321986 (it was demonstrated to be faster)
@@ -294,7 +307,7 @@ info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
-convert "$file"  -auto-level  -fuzz 25% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate "$(dirname "$file")/mask_ent.tif"
+convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate "$(dirname "$file")/mask_ent.tif"
 for i in $(seq 1 $length)
 do
     #ProgressBar 10#$i $length
@@ -314,6 +327,9 @@ info "Extracting individual wells. This may take a while..."
 cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells" & mypid=$!
 ProgressCheck "$dir_wells/" jpeg $length $mypid
 [[ $(wait $mypid ; echo $?) -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
+
+# Stop if test mode
+[[ -n "$test" ]] && clean_up "$dir_log" && exit 0
 
 
 #--------------------------#
