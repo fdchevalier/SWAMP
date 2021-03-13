@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: swamp
-# Version: 0.8
+# Version: 0.9
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-07-15
-# Modified in: 2021-01-15
+# Modified in: 2021-03-12
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim=""
 # Versions #
 #==========#
 
+# v0.9 - 2021-03-12: add quality check output / change log location to work with HPC / improve mask generation / check R error status / run CellProfiler in a subshell / remove tag / add debug option
 # v0.8 - 2021-01-15: add test mode / check video length / adjust fuzz level
 # v0.7 - 2020-11-24: rename script / add new options related to layout and folder prefix / improve frame alignment using align-to-first option / change default one value / correct typos
 # v0.6 - 2020-11-04: improve mask generation
@@ -41,7 +42,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -v|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -n|--test -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -v|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -n|--test -d|--dbg -h|--help
 
 Aim: $aim
 
@@ -58,6 +59,7 @@ Options:
     -l, --layout    plate layout file
     -p, --prefix    prefix of the folder to store results [default: .]
     -n, --test      analyze only the first frame to test the grid position
+    -d, --dbg       debug mode, keep intermediary files and logs
     -h, --help      this message
     "
 }
@@ -190,6 +192,7 @@ do
         -l|--layout ) layout="$2" ; shift 2 ;;
         -p|--prefix ) prefix="$2" ; shift 2 ;;
         -n|--test   ) test="test" ; shift 1 ;;
+        -d|--dbg    ) debug="dbg" ; shift 1 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -209,8 +212,9 @@ done
 [[ -d "$prefix" ]] && error "Folder $prefix exists already. Existing..." 1
 [[ -z "$prefix" ]] && prefix="."
 
-# Check layout (text file / non empty)
+# Check layout
 [[ ! -s "$layout" ]] && error "The layout file does not exist or is empty. Exiting..." 1
+[[ ! $(file --mime -bL "$layout" | grep -i text) ]] && error "The layout file is not a text file. Exiting...\n$(usage)" 1
 
 # Default values for video time
 [[ -z "$start" ]] && start=0
@@ -231,12 +235,16 @@ done
 # Directory variables
 dir_frames="$prefix/frames"
 dir_wells="$prefix/wells"
-dir_log=$(mktemp -d)
+dir_qual="$prefix/QC"
 dir_pipelines="$(dirname $0)/cellprofiler_pipelines"
 
 # Log variables
+dir_log=".log"
+[[ ! -d "$dir_log" ]] && mkdir -p "$dir_log"
+dir_log=$(mktemp -d -p "$dir_log")
 log_movie="$dir_log/log_movie"
 log_wells="$dir_log/log_wells"
+log_R="$dir_log/log_R"
 
 
 
@@ -245,7 +253,7 @@ log_wells="$dir_log/log_wells"
 #============#
 
 # Trap function
-trap "clean_up $dir_frames $dir_wells $dir_log" SIGINT SIGTERM    # Clean_up function to remove tmp files
+trap "clean_up $dir_frames $dir_wells $dir_qual $dir_log" SIGINT SIGTERM
 
 # Test mode message
 [[ -n $test ]] && warning "Test mode. Only first frame analyzed."
@@ -257,6 +265,7 @@ trap "clean_up $dir_frames $dir_wells $dir_log" SIGINT SIGTERM    # Clean_up fun
 
 [[ ! -d "$dir_frames" ]] && mkdir -p "$dir_frames"
 [[ ! -d "$dir_wells" ]]  && mkdir -p "$dir_wells"
+[[ ! -d "$dir_qual" ]]   && mkdir -p "$dir_qual"
 
 
 #--------------#
@@ -279,13 +288,11 @@ fi
 
 # Extract frames
 ## source: https://stackoverflow.com/a/28321986 (it was demonstrated to be faster)
-tag=1
 for i in $myseq
 do
     ProgressBar 10#$i $stop
-	ffmpeg -y -accurate_seek -ss $i -i "$movie" -frames:v 1 "$dir_frames/${i}-${tag}.png" &>> "$log_movie"
+	ffmpeg -y -accurate_seek -ss $i -i "$movie" -vf scale=1920:-1 -frames:v 1 "$dir_frames/${i}.png" &>> "$log_movie"
     [[ $? -ne 0 ]] && error "Please see $log_movie for details. Exiting..." 1
-    [[ $tag -eq 1 ]] && tag=2 || tag=1
 done
 
 # Align frames
@@ -307,16 +314,16 @@ info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
-convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate "$(dirname "$file")/mask_ent.tif"
+convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate -morphology erode disk:10 "$(dirname "$file")/mask.tif"
 for i in $(seq 1 $length)
 do
     #ProgressBar 10#$i $length
     file=$(sed -n "${i}p" <<< "$flist")
-	cp -a "$(dirname "$file")/mask_ent.tif" "${file%.*}_ent.tif"
+	cp -a "$(dirname "$file")/mask.tif" "${file%.*}_mask.tif"
 done
 
-# Remove mask
-rm "$(dirname "$file")/mask_ent.tif"
+# Move mask to tmp folder
+mv "$(dirname "$file")/mask.tif" "$dir_log/mask.tif"
 
 
 #---------------#
@@ -324,12 +331,26 @@ rm "$(dirname "$file")/mask_ent.tif"
 #---------------#
 
 info "Extracting individual wells. This may take a while..."
-cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells" & mypid=$!
+( cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells" ) & mypid=$!
 ProgressCheck "$dir_wells/" jpeg $length $mypid
 [[ $(wait $mypid ; echo $?) -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
 
+
+#---------------------#
+# Quality check files #
+#---------------------#
+
+info "Preparing quality check folder..."
+
+# Mask
+mv "$dir_log/mask.tif" "$dir_qual/mask.tif"
+
+# Grid
+cp -a "$(find "$dir_wells"/* -name *jpeg | head -1)" "$dir_qual/grid.jpeg"
+
 # Stop if test mode
-[[ -n "$test" ]] && clean_up "$dir_log" && exit 0
+[[ -n "$test" && -n "$dbg" ]] && clean_up "$dir_log" && exit 0
+[[ -n "$test" && -z "$dbg" ]] && clean_up "$dir_frames" "$dir_wells" "$dir_log" && exit 0
 
 
 #--------------------------#
@@ -370,7 +391,7 @@ do
 
 done
 
-echo -e "$mymean"  > "${output}_mymean.tsv"
+echo -e "$mymean"  > "$prefix/${output}.tsv"
 
 
 #---------------------#
@@ -379,13 +400,14 @@ echo -e "$mymean"  > "${output}_mymean.tsv"
 
 info "Analyzing final table..."
 
-Rscript "$(dirname $0)/quant_mvt.R" -f "${output}_mymean.tsv" -l "$layout" -p "$prefix"
+Rscript "$(dirname $0)/quant_mvt.R" -f "$prefix/${output}.tsv" -l "$layout" -p "$prefix" -q "$dir_qual" &> "$log_R"
+[[ $? -ne 0 ]] && error "Please see $log_R for details. Exiting..." 1
 
 
 #-------#
 # Clean #
 #-------#
 
-clean_up "$dir_log"
+[[ -z "$dbg" ]] && clean_up "$dir_frames" "$dir_wells" "$dir_log"
 
 exit 0

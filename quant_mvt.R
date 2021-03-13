@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Title: quant_mvt.R
-# Version: 0.1
+# Version: 0.2
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-10-29
-# Modified in: 2020-11-24 
+# Modified in: 2021-03-13
 # Licence: GPL v3
 
 
@@ -20,6 +20,7 @@ aim <- "Analyze table of movement index (absolute error) between well images and
 # Versions #
 #==========#
 
+# v0.2 - 2021-03-13: update output file locations and types / add quality check folder option / create report / correct bug in output frame differences
 # v0.1 - 2020-11-24: add prefix and layout options / improve bad well detection / use properly well numbering / correct typo
 # v0.0 - 2020-10-29: creation
 
@@ -49,7 +50,9 @@ option_list <- list(
     make_option(c("-l", "--layout"), type="character", default="out.txt",
                   help="plate layout file", metavar="character"),
     make_option(c("-p", "--prefix"), type="character", default=".",
-                  help="prefix of the folder where data is available and results will be stored", metavar="character")
+                  help="prefix of the folder where data is available and final results will be stored", metavar="character"),
+    make_option(c("-q", "--qc"), type="character", default=".",
+                  help="path to the quality check folder where intermediary results will be stored", metavar="character")
 )
 
 # Parse options
@@ -65,14 +68,15 @@ if (is.null(opt$file)){
 filename <- basename(opt$file) %>% tools::file_path_sans_ext()
 
 # Graphic options
-graph_fd <- "graphs/"
-#theme_set(theme_classic())
+qc_fd <- opt$qc
 
 
 
 #=================#
 # Data processing #
 #=================#
+
+if( ! dir.exists(qc_fd)) { dir.create(qc_fd, recursive = TRUE) }
 
 # Load data
 mytable  <- read.delim(opt$file)
@@ -113,10 +117,18 @@ names(bs) <- mytable[,1]
 
 cs <- merge(mylayout, as.data.frame(bs), by.x=1, by.y="row.names")
 
-cs2 <- cs[ ! myblank, ]
+cs2 <- cs[ ! myblank, ] %>% droplevels()
 
 # Write table with average values
 write.table(cs2, paste0(opt$prefix, "/", filename, "_mean.tsv"), row.names = FALSE, sep = "\t")
+
+# Write report
+report <- c(
+    paste("Total number of frames:",     length(bad_wells)),
+    paste("Number of retained frames:",  sum(!bad_wells)),
+    paste("Number of discarded frames:", sum(bad_wells))
+)
+write(report, paste0(qc_fd, "/frame report.txt"))
 
 
 
@@ -124,14 +136,18 @@ write.table(cs2, paste0(opt$prefix, "/", filename, "_mean.tsv"), row.names = FAL
 # Figures #
 #=========#
 
-if( ! dir.exists(graph_fd)) { dir.create(graph_fd, recursive = TRUE) }
-
 #-------------------------#
 # Global group comparison #
 #-------------------------#
 
-png(paste0(graph_fd, filename, "_boxplot.png"))
-boxplot(cs[,3] ~ cs[,2])
+# Including blank wells for quality check
+pdf(paste0(qc_fd, "/", filename, "_boxplot.pdf"))
+boxplot(cs[,3] ~ cs[,2], xlab = "Population", ylab = "Movement index")
+dev.off()
+
+# Final boxplot
+pdf(paste0(opt$prefix, "/", filename, "_boxplot.pdf"))
+boxplot(cs2[,3] ~ cs2[,2], xlab = "Population", ylab = "Movement index")
 dev.off()
 
 
@@ -139,14 +155,16 @@ dev.off()
 # Average movement by well #
 #--------------------------#
 
-png(paste0(graph_fd, filename, "_mean.png"))
+# Including blank wells for quality check
+pdf(paste0(qc_fd, "/", filename, "well_mean.pdf"))
 raw_map(data = cs[,3],
         well = cs[,1],
         plate = 96) +
     scale_fill_gradient(low = "white", high = "black")
 dev.off()
 
-pdf(paste0(graph_fd, filename, "_mean_final.pdf"))
+# Final plate plot
+pdf(paste0(opt$prefix, "/", filename, "well_mean.pdf"))
 cs.tmp <- cs
 myclr  <- rep(NA, nrow(cs))
 myfill <- rep(NA, nrow(cs))
@@ -165,23 +183,23 @@ dev.off()
 # Frame differences output #
 #--------------------------#
 
-graph_fd_d <- paste0(graph_fd, "discarded images/")
-graph_fd_r <- paste0(graph_fd, "retained images/")
+qc_fd_d <- paste0(qc_fd, "/discarded images/")
+qc_fd_r <- paste0(qc_fd, "/retained images/")
 
-if( ! dir.exists(graph_fd_d)) { dir.create(graph_fd_d, recursive = TRUE) }
-if( ! dir.exists(graph_fd_r)) { dir.create(graph_fd_r, recursive = TRUE) }
+if( ! dir.exists(qc_fd_d)) { dir.create(qc_fd_d, recursive = TRUE) }
+if( ! dir.exists(qc_fd_r)) { dir.create(qc_fd_r, recursive = TRUE) }
 
 # Output graph for each column of the input table
-for (i in 2:(ncol(mytable)-1)) {
+for (i in 2:(ncol(mytable))) {
 
     if (bad_wells[i-1]) {
-    png(paste0(graph_fd_d, filename, "_", colnames(mytable)[i], ".png"))
+        png(paste0(qc_fd_d, filename, "_", colnames(mytable)[i], ".png"))
         p <- raw_map(data = mytable[, i],
                 well = mytable[, 1],
                 plate = 96) +
             scale_fill_gradient(low = "white", high = "black", limits = range(mytable[, 2:(ncol(mytable)-1)]))
     } else {
-        png(paste0(graph_fd_r, filename, "_", colnames(mytable)[i], ".png"))
+        png(paste0(qc_fd_r, filename, "_", colnames(mytable)[i], ".png"))
         p <- raw_map(data = mytable[, i],
                 well = mytable[, 1],
                 plate = 96) +
