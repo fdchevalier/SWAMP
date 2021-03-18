@@ -124,13 +124,13 @@ IdentifyPrimaryObjects:[module_num:7|svn_version:\'Unknown\'|variable_revision_n
     Automatically calculate minimum allowed distance between local maxima?:\xff\xfeY\x00e\x00s\x00
     Handling of objects if excessive number of objects identified:\xff\xfeC\x00o\x00n\x00t\x00i\x00n\x00u\x00e\x00
     Maximum number of objects:\xff\xfe5\x000\x000\x00
-    Use advanced settings?:\xff\xfeN\x00o\x00
+    Use advanced settings?:\xff\xfeY\x00e\x00s\x00
     Threshold setting version:\xff\xfe1\x000\x00
     Threshold strategy:\xff\xfeG\x00l\x00o\x00b\x00a\x00l\x00
     Thresholding method:\xff\xfeM\x00i\x00n\x00i\x00m\x00u\x00m\x00 \x00c\x00r\x00o\x00s\x00s\x00 \x00e\x00n\x00t\x00r\x00o\x00p\x00y\x00
     Threshold smoothing scale:\xff\xfe1\x00.\x003\x004\x008\x008\x00
     Threshold correction factor:\xff\xfe1\x00.\x000\x00
-    Lower and upper bounds on threshold:\xff\xfe0\x00.\x000\x00,\x001\x00.\x000\x00
+    Lower and upper bounds on threshold:\xff\xfe0\x00.\x001\x00,\x001\x00.\x000\x00
     Manual threshold:\xff\xfe0\x00.\x000\x00
     Select the measurement to threshold with:\xff\xfeN\x00o\x00n\x00e\x00
     Two-class or three-class thresholding?:\xff\xfeT\x00w\x00o\x00 \x00c\x00l\x00a\x00s\x00s\x00e\x00s\x00

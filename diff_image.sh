@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: diff_image.sh 
-# Version: 0.1
+# Version: 0.2
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-10-10
-# Modified in: 2020-10-20
+# Modified in: 2021-03-18
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim="Compare a pair of images and determine how much difference (error) there is
 # Versions #
 #==========#
 
+# v0.2 - 2021-03-18: update the fuzz factor after switching from ImageMagick 6 to 7
 # v0.1 - 2020-10-20: change image comparison method to overcome background noise / improve listing of files
 # v0.0 - 2020-10-10: creation
 
@@ -57,7 +58,6 @@ test_dep compare
 mydir_1="$1"
 mydir_2="$2"
 
-# output="$(basename "$(echo "$mydir_1")").tab"
 output="$3"
 
 
@@ -82,7 +82,7 @@ do
     myfile="$(sed -n "${i}p" <<< "$flist")"
 
     ## source: http://www.imagemagick.org/Usage/compare/#difference
-    mymetric=$(compare -metric AE -fuzz 10% "$mydir_1/$myfile" "$mydir_2/$myfile" null: 2>&1 | sed "s/[()]//g")
+    mymetric=$(compare -metric AE -fuzz 5% "$mydir_1/$myfile" "$mydir_2/$myfile" null: 2>&1 | sed "s/[()]//g")
 
     echo "$myfile $mymetric" >> "$output"
 done
