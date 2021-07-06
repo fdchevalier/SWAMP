@@ -20,6 +20,8 @@ aim=""
 # Versions #
 #==========#
 
+## V1!!!
+
 # v0.9 - 2021-03-12: add quality check output / change log location to work with HPC / improve mask generation / check R error status / run CellProfiler in a subshell / remove tag / add debug option
 # v0.8 - 2021-01-15: add test mode / check video length / adjust fuzz level
 # v0.7 - 2020-11-24: rename script / add new options related to layout and folder prefix / improve frame alignment using align-to-first option / change default one value / correct typos
@@ -42,7 +44,7 @@ version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
 # Usage message
 function usage {
     echo -e "
-    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -v|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -n|--test -d|--dbg -h|--help
+    \e[32m ${0##*/} \e[00m -i|--in file -o|--output file -a|--start value -s|--stop value -n|--int value -t|--trsh value -r|--rev -l|--layout file -p|--prefix name -k|--skip value -n|--test -d|--dbg -h|--help
 
 Aim: $aim
 
@@ -58,6 +60,7 @@ Options:
     -r, --rev       revert plate layout (A01 in the bottom right)
     -l, --layout    plate layout file
     -p, --prefix    prefix of the folder to store results [default: .]
+    -k, --skip      skip filtering bad frames based on blank wells [default: no]
     -n, --test      analyze only the first frame to test the grid position
     -d, --dbg       debug mode, keep intermediary files and logs
     -h, --help      this message
@@ -191,8 +194,9 @@ do
         -r|--rev    ) rev="rev"   ; shift 1 ;;
         -l|--layout ) layout="$2" ; shift 2 ;;
         -p|--prefix ) prefix="$2" ; shift 2 ;;
+        -k|--skip   ) skip="$2"   ; shift 2 ;;
         -n|--test   ) test="test" ; shift 1 ;;
-        -d|--dbg    ) debug="dbg" ; shift 1 ;;
+        -d|--dbg    ) dbg="dbg"   ; shift 1 ;;
         -h|--help   ) usage ; exit 0 ;;
         *           ) error "Invalid option: $1\n$(usage)" 1 ;;
     esac
@@ -211,6 +215,10 @@ done
 # Check prefix
 [[ -d "$prefix" ]] && error "Folder $prefix exists already. Existing..." 1
 [[ -z "$prefix" ]] && prefix="."
+
+# Check skip
+[[ -n "$skip" && ! $(grep -x -E "y|yes|n|no" <<<"$skip") ]] && error "Skip option accepts only \"y\", \"yes\", \"n\" or \"no\" values. Exiting..." 1
+[[ -z "$skip" ]] && skip="no"
 
 # Check layout
 [[ ! -s "$layout" ]] && error "The layout file does not exist or is empty. Exiting..." 1
@@ -236,7 +244,7 @@ done
 dir_frames="$prefix/frames"
 dir_wells="$prefix/wells"
 dir_qual="$prefix/QC"
-dir_pipelines="$(dirname $0)/cellprofiler_pipelines"
+dir_pipelines="$(dirname "$(readlink "$0")")/cellprofiler_pipelines"
 
 # Log variables
 dir_log=".log"
@@ -297,7 +305,7 @@ done
 
 # Align frames
 info "Realigning images. This may take time..."
-align_image_stack -a "$dir_frames/" --align-to-first "$dir_frames/"*.png &> "$log_wells"
+align_image_stack -a "$dir_frames/" --align-to-first -c 24 "$dir_frames/"*.png &> "$log_wells"
 
 # Rename aligned frames to the original name
 ls_fl=$(paste <(find "$dir_frames/" -mindepth 1 -name *tif) <(find "$dir_frames/" -mindepth 1 -name *png | sort | sed "s/png$/tif/"))
@@ -314,7 +322,22 @@ info "Generating mask for well extraction."
 flist=$(ls -1d "$dir_frames"/*)
 length=$(wc -l <<< "$flist")
 file=$(sed -n "1p" <<< "$flist")
-convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate -morphology erode disk:10 "$(dirname "$file")/mask.tif"
+# convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten -negate - | convert - -negate -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate -morphology erode disk:10 "$(dirname "$file")/mask.tif"
+# convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black -morphology dilate:3 square:3 -morphology erode:3 square:10 - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -equalize -background white -flatten - | convert - -monochrome -blur ${trsh}x${trsh} -threshold 50% -negate "$(dirname "$file")/mask.tif"
+
+# convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black -morphology dilate:3 square:3 -morphology erode:3 square:10 - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -normalize -background white -flatten - | convert - -monochrome -negate -blur ${trsh}x${trsh} -threshold 50%  "$(dirname "$file")/mask.tif"
+
+# convert "$file" -auto-level -fuzz 45% -background black -fill none -draw 'color 0,0 floodfill' png:- | convert -  -background white -flatten -  | convert - -monochrome -negate -blur ${trsh}x${trsh} -threshold 70% -morphology erode disk:10 "$(dirname "$file")/mask.tif"
+
+# convert "$file" -auto-level -fuzz 45% -background black -fill none -draw 'color 0,0 floodfill' png:- | convert -  -background white -flatten -  | convert - \( +clone -blur 0x45 \) -compose Divide_Src -composite - | convert - -monochrome -negate -blur ${trsh}x${trsh} -threshold 70% -morphology erode disk:10 "$(dirname "$file")/mask.tif"
+
+# convert "$file" -auto-level -fuzz 45% -background black -fill none -draw 'color 0,0 floodfill' png:- | convert -  -background white -flatten -  | convert - -monochrome -negate -blur ${trsh}x${trsh} -threshold 70% -morphology erode:5 square:1 "$(dirname "$file")/mask.tif"
+
+convert "$file" -alpha off -auto-level -fuzz 40% -background black -fill none -draw 'color 0,0 floodfill' -equalize png:- | convert - \( +clone -alpha extract -edge 20 \) -compose add -composite -background black -fill white -draw 'color 0,0 floodfill' - | convert - -monochrome -negate -blur ${trsh}x${trsh} -threshold 50% "$(dirname "$file")/mask.tif"
+
+# convert "$file" -auto-level -fuzz 40% -fill black -opaque black -fill white +opaque black - | convert "$file" - -alpha Off -compose CopyOpacity -composite - | convert - -normalize -background white -flatten -monochrome -negate -blur ${trsh}x${trsh} -threshold 50% -morphology erode disk:10 "$(dirname "$file")/mask.tif"
+
+
 for i in $(seq 1 $length)
 do
     #ProgressBar 10#$i $length
@@ -333,7 +356,9 @@ mv "$(dirname "$file")/mask.tif" "$dir_log/mask.tif"
 info "Extracting individual wells. This may take a while..."
 ( cellprofiler -c -r -p "$dir_pipelines/Single Worm Output.cppipe" -i "$dir_frames" -o "$dir_wells/" &> "$log_wells" ) & mypid=$!
 ProgressCheck "$dir_wells/" jpeg $length $mypid
-[[ $(wait $mypid ; echo $?) -ne 0 ]] && error "Please see $log_wells for details. Exiting..." 1
+mystatus=$(wait $mypid ; echo $?)
+echo "Exit status: $mystatus" >> "$log_wells"
+[[ $mystatus -gt 0 ]] && error "Please see $log_wells for details. Exiting..." 1
 
 
 #---------------------#
@@ -364,7 +389,7 @@ for ((i = 0 ; i < $dend ; i++))
 do
     j=$(($i + 1))
     ProgressBar 10#$j $dend
-    "$(dirname $0)/diff_image.sh" ${dlist[$i]} ${dlist[$j]} "$dir_wells/${dlist[$i]##*/}-${dlist[$j]##*/}.tab"
+    "$(dirname "$(readlink "$0")")/diff_image.sh" ${dlist[$i]} ${dlist[$j]} "$dir_wells/${dlist[$i]##*/}-${dlist[$j]##*/}.tab"
 done
 
 
@@ -400,7 +425,7 @@ echo -e "$mymean"  > "$prefix/${output}.tsv"
 
 info "Analyzing final table..."
 
-Rscript "$(dirname $0)/quant_mvt.R" -f "$prefix/${output}.tsv" -l "$layout" -p "$prefix" -q "$dir_qual" &> "$log_R"
+Rscript "$(dirname "$(readlink "$0")")/quant_mvt.R" -f "$prefix/${output}.tsv" -l "$layout" -p "$prefix" -q "$dir_qual" -k "$skip" &> "$log_R"
 [[ $? -ne 0 ]] && error "Please see $log_R for details. Exiting..." 1
 
 

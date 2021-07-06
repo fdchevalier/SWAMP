@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Title: quant_mvt.R
-# Version: 0.2
+# Version: 0.4
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2020-10-29
-# Modified in: 2021-03-13
+# Modified in: 2021-04-15
 # Licence: GPL v3
 
 
@@ -20,6 +20,8 @@ aim <- "Analyze table of movement index (absolute error) between well images and
 # Versions #
 #==========#
 
+# v0.4 - 2021-04-15: add skip bad well filtering option
+# v0.3 - 2021-03-28: escape % sign in filename / TODO: add standard error column in output file
 # v0.2 - 2021-03-13: update output file locations and types / add quality check folder option / create report / correct bug in output frame differences
 # v0.1 - 2020-11-24: add prefix and layout options / improve bad well detection / use properly well numbering / correct typo
 # v0.0 - 2020-10-29: creation
@@ -52,7 +54,9 @@ option_list <- list(
     make_option(c("-p", "--prefix"), type="character", default=".",
                   help="prefix of the folder where data is available and final results will be stored", metavar="character"),
     make_option(c("-q", "--qc"), type="character", default=".",
-                  help="path to the quality check folder where intermediary results will be stored", metavar="character")
+                  help="path to the quality check folder where intermediary results will be stored", metavar="character"),
+    make_option(c("-k", "--skip"), type="character", default="no",
+                  help="skip filtering bad frames based on blank wells", metavar="character")
 )
 
 # Parse options
@@ -65,7 +69,16 @@ if (is.null(opt$file)){
   stop("At least one argument must be supplied (input file).", call.=FALSE)
 }
 
-filename <- basename(opt$file) %>% tools::file_path_sans_ext()
+filename     <- basename(opt$file) %>% tools::file_path_sans_ext()
+filename_img <- stringr::str_replace(filename, "%", "%%")
+
+if (opt$skip == "no" | opt$skip == "n") {
+    skip <- FALSE
+} else if (opt$skip == "yes" | opt$skip == "y") {
+    skip <- TRUE
+} else {
+    stop("Skip option accepts only \"y\", \"yes\", \"n\" and \"no\" values.", call.=FALSE)
+}
 
 # Graphic options
 qc_fd <- opt$qc
@@ -96,15 +109,24 @@ myblank <- mylayout[,2] == "blank"
 # Identify problematic wells #
 #----------------------------#
 
-# Compute normalized distance from the mean
-mysd <- apply(mytable[myblank,2:ncol(mytable)], 1, function(x) ( (x - mean(x)) / sqrt(mean(x))) )
-mysd[ ! is.finite(mysd) ] <- 0
+if (skip) {
+    bad_wells <- rep(FALSE, ncol(mytable) - 1)
+} else {
+    # Detecting unaligned frame
+    mybad_frame_bk <- (mytable[myblank,2:ncol(mytable)] > (mytable[myblank,2:ncol(mytable)] %>% unlist() %>% sd)) %>% colSums() == sum(myblank)
+    mytable.tmp <- mytable[, 2:ncol(mytable)]
+    mytable.tmp[, mybad_frame_bk] <- 0
+    
+    # Compute normalized distance from the mean
+    mysd <- apply(mytable.tmp[myblank, ], 1, function(x) ( (x - mean(x)) / sqrt(mean(x))) )
+    mysd[ ! is.finite(mysd) ] <- 0
 
-# Filter on max distance to the mean and invert coefficient of variation
-bad_wells <- apply(mysd, 1, max) >= 10 | apply(mysd, 1, sd) >= 4 
-bad_wells_tmp <- ((apply(mysd, 1, function(x) mean(x) / sd(x)) ) %>% abs() %>% round() ) >= 4
-bad_wells_tmp[ is.na(bad_wells_tmp) ]  <- FALSE
-bad_wells <- bad_wells | bad_wells_tmp
+    # Filter on max distance to the mean and invert coefficient of variation
+    bad_wells <- apply(mysd, 1, max) >= 10 | apply(mysd, 1, sd) >= 4 
+    bad_wells_tmp <- ((apply(mysd, 1, function(x) mean(x) / sd(x)) ) %>% abs() %>% round() ) >= 4
+    bad_wells_tmp[ is.na(bad_wells_tmp) ]  <- FALSE
+    bad_wells <- bad_wells | bad_wells_tmp | mybad_frame_bk
+}
 
 # Keep only good wells
 bs <- apply(mytable[, 2:ncol(mytable)][, ! bad_wells], 1, function(x) mean(x))
@@ -141,12 +163,12 @@ write(report, paste0(qc_fd, "/frame report.txt"))
 #-------------------------#
 
 # Including blank wells for quality check
-pdf(paste0(qc_fd, "/", filename, "_boxplot.pdf"))
+pdf(paste0(qc_fd, "/", filename_img, "_boxplot.pdf"))
 boxplot(cs[,3] ~ cs[,2], xlab = "Population", ylab = "Movement index")
 dev.off()
 
 # Final boxplot
-pdf(paste0(opt$prefix, "/", filename, "_boxplot.pdf"))
+pdf(paste0(opt$prefix, "/", filename_img, "_boxplot.pdf"))
 boxplot(cs2[,3] ~ cs2[,2], xlab = "Population", ylab = "Movement index")
 dev.off()
 
@@ -156,7 +178,7 @@ dev.off()
 #--------------------------#
 
 # Including blank wells for quality check
-pdf(paste0(qc_fd, "/", filename, "well_mean.pdf"))
+pdf(paste0(qc_fd, "/", filename_img, "_mean.pdf"))
 raw_map(data = cs[,3],
         well = cs[,1],
         plate = 96) +
@@ -164,7 +186,7 @@ raw_map(data = cs[,3],
 dev.off()
 
 # Final plate plot
-pdf(paste0(opt$prefix, "/", filename, "well_mean.pdf"))
+pdf(paste0(opt$prefix, "/", filename_img, "_mean_final.pdf"))
 cs.tmp <- cs
 myclr  <- rep(NA, nrow(cs))
 myfill <- rep(NA, nrow(cs))
@@ -193,13 +215,13 @@ if( ! dir.exists(qc_fd_r)) { dir.create(qc_fd_r, recursive = TRUE) }
 for (i in 2:(ncol(mytable))) {
 
     if (bad_wells[i-1]) {
-        png(paste0(qc_fd_d, filename, "_", colnames(mytable)[i], ".png"))
+        png(paste0(qc_fd_d, filename_img, "_", colnames(mytable)[i], ".png"))
         p <- raw_map(data = mytable[, i],
                 well = mytable[, 1],
                 plate = 96) +
             scale_fill_gradient(low = "white", high = "black", limits = range(mytable[, 2:(ncol(mytable)-1)]))
     } else {
-        png(paste0(qc_fd_r, filename, "_", colnames(mytable)[i], ".png"))
+        png(paste0(qc_fd_r, filename_img, "_", colnames(mytable)[i], ".png"))
         p <- raw_map(data = mytable[, i],
                 well = mytable[, 1],
                 plate = 96) +
