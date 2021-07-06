@@ -1,0 +1,3 @@
+Total number of frames: 10
+Number of retained frames: 10
+Number of discarded frames: 0
