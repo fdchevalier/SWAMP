@@ -213,7 +213,7 @@ done
 [[ -f "$output" ]] && error "Output file $output exists already. Exiting..." 1
 
 # Check prefix
-[[ -d "$prefix" ]] && error "Folder $prefix exists already. Existing..." 1
+[[ -d "$prefix" && -n "$(find "$prefix" -prune -empty -type d 2>/dev/null)" ]] && error "Folder $prefix exists already and is not empty. Exiting..." 1
 [[ -z "$prefix" ]] && prefix="."
 
 # Check skip
@@ -308,7 +308,7 @@ info "Realigning images. This may take time..."
 align_image_stack -a "$dir_frames/" --align-to-first -c 24 "$dir_frames/"*.png &> "$log_wells"
 
 # Rename aligned frames to the original name
-ls_fl=$(paste <(find "$dir_frames/" -mindepth 1 -name *tif) <(find "$dir_frames/" -mindepth 1 -name *png | sort | sed "s/png$/tif/"))
+ls_fl=$(paste <(find "$dir_frames/" -mindepth 1 -name *tif | sort) <(find "$dir_frames/" -mindepth 1 -name *png | sort | sed "s/png$/tif/"))
 while read l
 do
     mv "$(cut -f 1 <<< "$l")" "$(cut -f 2 <<< "$l")"
